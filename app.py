@@ -34,6 +34,21 @@ df = load_resumes()
 text_col = "Resume_str" if "Resume_str" in df.columns else "Resume_s"
 st.caption(f"{len(df)} resumes loaded across {df['Category'].nunique()} categories")
 
+all_categories = sorted(df["Category"].unique())
+st.sidebar.header("Filters")
+selected_categories = st.sidebar.multiselect(
+    "Restrict search to categories",
+    options=all_categories,
+    default=all_categories,
+    help="Only resumes from the selected categories will be retrieved.",
+)
+if not selected_categories:
+    st.sidebar.warning("No categories selected — all will be searched.")
+    selected_categories = all_categories
+
+# Pass None (= no filter) when everything is selected — avoids building the mask
+_category_filter = None if selected_categories == all_categories else selected_categories
+
 api_key = os.getenv("ANTHROPIC_API_KEY")
 demo_mode = not api_key
 
@@ -65,7 +80,7 @@ if prompt := st.chat_input("Ask a question about the resumes"):
         st.markdown(prompt)
 
     # RAG: retrieve the most relevant resumes for this specific question
-    results = rag.search(prompt, k=10)
+    results = rag.search(prompt, k=10, categories=_category_filter)
 
     # Build system prompt from retrieved resumes (not a random sample)
     resume_context = "\n\n---\n\n".join(

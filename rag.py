@@ -66,10 +66,11 @@ class ResumeRAG:
     # Step 2: Retrieve
     # ------------------------------------------------------------------
 
-    def search(self, query: str, k: int = 10) -> list[dict]:
+    def search(self, query: str, k: int = 10, categories: list[str] | None = None) -> list[dict]:
         """Return the k resumes most semantically similar to *query*.
 
         Each result dict has: score, ID, Category, and the text column.
+        Pass *categories* to restrict results to specific resume categories.
         """
         if self._embeddings is None:
             raise RuntimeError("Index not built. Call build_index() or load_index() first.")
@@ -80,8 +81,17 @@ class ResumeRAG:
         # Cosine similarity = dot product when both sides are already normalised
         scores = (self._embeddings @ q_emb.T).squeeze()
 
+        # Zero out scores for categories not in the filter so they never surface in top-k
+        if categories:
+            mask = np.array([r["Category"] in categories for r in self._records])
+            scores = np.where(mask, scores, -np.inf)
+
         top_idx = np.argsort(scores)[-k:][::-1]
-        return [{"score": float(scores[i]), **self._records[i]} for i in top_idx]
+        return [
+            {"score": float(scores[i]), **self._records[i]}
+            for i in top_idx
+            if scores[i] > -np.inf
+        ]
 
     # ------------------------------------------------------------------
     # Helpers
