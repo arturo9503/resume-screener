@@ -7,15 +7,21 @@ from rag import ResumeRAG
 
 load_dotenv()
 
-st.set_page_config(page_title="Resume Q&A", layout="centered")
-st.title("Resume Q&A")
+st.set_page_config(page_title="Resume Screener", layout="centered")
+st.title("Resume Screener")
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resume.csv")
+POSTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample_postings.csv")
 
 
 @st.cache_data
 def load_resumes():
     return pd.read_csv(CSV_PATH)
+
+
+@st.cache_data
+def load_postings():
+    return pd.read_csv(POSTINGS_PATH)
 
 
 @st.cache_resource(show_spinner="Loading search index...")
@@ -34,7 +40,20 @@ df = load_resumes()
 text_col = "Resume_str" if "Resume_str" in df.columns else "Resume_s"
 st.caption(f"{len(df)} resumes loaded across {df['Category'].nunique()} categories")
 
+postings_df = load_postings()
+
 all_categories = sorted(df["Category"].unique())
+st.sidebar.header("Job Posting")
+posting_labels = ["(None — use chat only)"] + [
+    f"{row['title']} @ {row['company_name']}" for _, row in postings_df.iterrows()
+]
+selected_label = st.sidebar.selectbox("Select a posting to screen against", posting_labels)
+selected_posting = (
+    None
+    if selected_label == "(None — use chat only)"
+    else postings_df.iloc[posting_labels.index(selected_label) - 1]
+)
+
 st.sidebar.header("Filters")
 selected_categories = st.sidebar.multiselect(
     "Restrict search to categories",
@@ -56,6 +75,19 @@ if demo_mode:
     st.warning("No ANTHROPIC_API_KEY found — running in demo mode. Answers are simulated.")
 
 rag, _ = init_rag()
+
+if selected_posting is not None:
+    st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
+    with st.expander("Job description"):
+        st.write(selected_posting["description"])
+    ranked = rag.search(str(selected_posting["description"]), k=50, categories=_category_filter)
+    st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
+    rows = [
+        {"Rank": i + 1, "Category": r["Category"], "Resume ID": r["ID"], "Score": f"{r['score']:.3f}"}
+        for i, r in enumerate(ranked)
+    ]
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.divider()
 
 DB_STATS = (
     f"Total resumes: {len(df)}\n"
