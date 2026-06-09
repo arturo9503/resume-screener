@@ -74,13 +74,13 @@ if selected_posting is not None:
         st.write(selected_posting["description"])
     ranked = rag.search(str(selected_posting["description"]), k=50)
     st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
-    rows = [
-        {"Rank": i + 1, "Category": r["Category"], "Resume ID": r["ID"], "Score": f"{r['score']:.3f}"}
-        for i, r in enumerate(ranked)
-    ]
-    event = st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
-    if event.selection.rows:
-        show_resume(ranked[event.selection.rows[0]])
+    for i, r in enumerate(ranked):
+        c1, c2, c3, c4 = st.columns([1, 3, 2, 1])
+        c1.write(i + 1)
+        c2.write(r["Category"])
+        if c3.button(f"ID {r['ID']}", key=f"resume_{i}"):
+            show_resume(r)
+        c4.write(f"{r['score']:.3f}")
     st.divider()
 
 DB_STATS = (
