@@ -42,7 +42,6 @@ st.caption(f"{len(df)} resumes loaded across {df['Category'].nunique()} categori
 
 postings_df = load_postings()
 
-all_categories = sorted(df["Category"].unique())
 st.sidebar.header("Job Posting")
 posting_labels = ["(None — use chat only)"] + [
     f"{row['title']} @ {row['company_name']}" for _, row in postings_df.iterrows()
@@ -53,20 +52,6 @@ selected_posting = (
     if selected_label == "(None — use chat only)"
     else postings_df.iloc[posting_labels.index(selected_label) - 1]
 )
-
-st.sidebar.header("Filters")
-selected_categories = st.sidebar.multiselect(
-    "Restrict search to categories",
-    options=all_categories,
-    default=all_categories,
-    help="Only resumes from the selected categories will be retrieved.",
-)
-if not selected_categories:
-    st.sidebar.warning("No categories selected — all will be searched.")
-    selected_categories = all_categories
-
-# Pass None (= no filter) when everything is selected — avoids building the mask
-_category_filter = None if selected_categories == all_categories else selected_categories
 
 api_key = os.getenv("ANTHROPIC_API_KEY")
 demo_mode = not api_key
@@ -80,7 +65,7 @@ if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
         st.write(selected_posting["description"])
-    ranked = rag.search(str(selected_posting["description"]), k=50, categories=_category_filter)
+    ranked = rag.search(str(selected_posting["description"]), k=50)
     st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
     rows = [
         {"Rank": i + 1, "Category": r["Category"], "Resume ID": r["ID"], "Score": f"{r['score']:.3f}"}
@@ -112,7 +97,7 @@ if prompt := st.chat_input("Ask a question about the resumes"):
         st.markdown(prompt)
 
     # RAG: retrieve the most relevant resumes for this specific question
-    results = rag.search(prompt, k=10, categories=_category_filter)
+    results = rag.search(prompt, k=10)
 
     # Build system prompt from retrieved resumes (not a random sample)
     resume_context = "\n\n---\n\n".join(
