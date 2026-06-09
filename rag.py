@@ -41,7 +41,8 @@ class ResumeRAG:
             normalize_embeddings=True,  # unit-normalised → cosine sim = dot product
         )
         np.save(CACHE_FILE, self._embeddings)
-        self._records = df[["ID", "Category", text_col]].to_dict("records")
+        cols = ["ID", "Category", text_col] + (["Resume_html"] if "Resume_html" in df.columns else [])
+        self._records = df[cols].to_dict("records")
         print(f"Index saved to {CACHE_FILE}")
 
     def load_index(self, df: pd.DataFrame, text_col: str) -> bool:
@@ -59,7 +60,8 @@ class ResumeRAG:
 
         self._get_model()         # need the model for query-time encoding
         self._embeddings = emb
-        self._records = df[["ID", "Category", text_col]].to_dict("records")
+        cols = ["ID", "Category", text_col] + (["Resume_html"] if "Resume_html" in df.columns else [])
+        self._records = df[cols].to_dict("records")
         return True
 
     # ------------------------------------------------------------------

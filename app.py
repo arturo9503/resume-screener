@@ -62,6 +62,12 @@ if demo_mode:
 
 rag, _ = init_rag()
 
+
+@st.dialog("Resume", width="large")
+def show_resume(r):
+    st.html(r.get("Resume_html", str(r.get("Resume_str", ""))))
+
+
 if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
@@ -72,7 +78,9 @@ if selected_posting is not None:
         {"Rank": i + 1, "Category": r["Category"], "Resume ID": r["ID"], "Score": f"{r['score']:.3f}"}
         for i, r in enumerate(ranked)
     ]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    event = st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+    if event.selection.rows:
+        show_resume(ranked[event.selection.rows[0]])
     st.divider()
 
 DB_STATS = (
