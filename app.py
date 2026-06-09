@@ -11,7 +11,7 @@ st.set_page_config(page_title="Resume Screener", layout="centered")
 st.title("Resume Screener")
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resume.csv")
-POSTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sample_postings.csv")
+POSTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "postings.csv")
 
 
 @st.cache_data
@@ -21,7 +21,8 @@ def load_resumes():
 
 @st.cache_data
 def load_postings():
-    return pd.read_csv(POSTINGS_PATH)
+    df = pd.read_csv(POSTINGS_PATH, usecols=["job_id", "company_name", "title", "description", "location"])
+    return df.dropna(subset=["description"]).sample(5)
 
 
 @st.cache_resource(show_spinner="Loading search index...")
