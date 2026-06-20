@@ -4,31 +4,28 @@ import anthropic
 import os
 from dotenv import load_dotenv
 from rag import ResumeRAG
+import db
 
 load_dotenv()
 
 st.set_page_config(page_title="Resume Screener", layout="centered")
 st.title("Resume Screener")
 
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resume.csv")
-POSTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "postings.csv")
-
 
 @st.cache_data
 def load_resumes():
-    return pd.read_csv(CSV_PATH)
+    return db.load_resumes()
 
 
 @st.cache_data
 def load_postings():
-    df = pd.read_csv(POSTINGS_PATH, usecols=["job_id", "company_name", "title", "description", "location"])
-    return df.dropna(subset=["description"]).sample(5)
+    return db.load_postings()
 
 
 @st.cache_resource(show_spinner="Loading search index...")
 def init_rag():
     """Load the pre-built RAG index. Run build_index.py first if missing."""
-    df = pd.read_csv(CSV_PATH)
+    df = db.load_resumes()
     text_col = "Resume_str" if "Resume_str" in df.columns else "Resume_s"
     rag = ResumeRAG()
     if not rag.load_index(df, text_col):

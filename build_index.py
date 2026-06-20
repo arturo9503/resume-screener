@@ -4,15 +4,15 @@ Run this once to build the search index:
     python build_index.py
 
 Produces embeddings_cache.npy, which app.py loads at startup.
-Re-run whenever Resume.csv changes.
+Re-run whenever the resumes table changes.
 """
-import os
-import pandas as pd
+from dotenv import load_dotenv
 from rag import ResumeRAG
+import db
 
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Resume.csv")
+load_dotenv()
 
-df = pd.read_csv(CSV_PATH)
+df = db.load_resumes()
 text_col = "Resume_str" if "Resume_str" in df.columns else "Resume_s"
 
 rag = ResumeRAG()
