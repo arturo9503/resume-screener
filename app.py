@@ -25,13 +25,11 @@ def load_postings():
 @st.cache_resource(show_spinner="Loading search index...")
 def init_rag():
     """Load the pre-built RAG index. Run build_index.py first if missing."""
-    df = db.load_resumes()
-    text_col = "Resume_str" if "Resume_str" in df.columns else "Resume_s"
     rag = ResumeRAG()
-    if not rag.load_index(df, text_col):
+    if not rag.load_index():
         st.error("Search index not found. Run `python build_index.py` first.")
         st.stop()
-    return rag, text_col
+    return rag
 
 
 df = load_resumes()
@@ -57,7 +55,7 @@ demo_mode = not api_key
 if demo_mode:
     st.warning("No ANTHROPIC_API_KEY found — running in demo mode. Answers are simulated.")
 
-rag, _ = init_rag()
+rag = init_rag()
 
 
 @st.dialog("Resume", width="large")
