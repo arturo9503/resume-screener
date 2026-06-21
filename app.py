@@ -3,7 +3,7 @@ import pandas as pd
 import anthropic
 import os
 from dotenv import load_dotenv
-from rag import ResumeRAG
+import rag
 import db
 
 load_dotenv()
@@ -24,12 +24,10 @@ def load_postings():
 
 @st.cache_resource(show_spinner="Loading search index...")
 def init_rag():
-    """Load the pre-built RAG index. Run build_index.py first if missing."""
-    rag = ResumeRAG()
-    if not rag.load_index():
+    if not db.embeddings_exist():
         st.error("Search index not found. Run `python build_index.py` first.")
         st.stop()
-    return rag
+    return rag.load_model()
 
 
 df = load_resumes()
@@ -55,7 +53,7 @@ demo_mode = not api_key
 if demo_mode:
     st.warning("No ANTHROPIC_API_KEY found — running in demo mode. Answers are simulated.")
 
-rag = init_rag()
+model = init_rag()
 
 
 @st.dialog("Resume", width="large")
@@ -67,7 +65,7 @@ if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
         st.write(selected_posting["description"])
-    ranked = rag.search(str(selected_posting["description"]), k=50)
+    ranked = rag.search(model, str(selected_posting["description"]), k=50)
     st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
     for i, r in enumerate(ranked):
         c1, c2, c3, c4 = st.columns([1, 3, 2, 1])
@@ -101,7 +99,7 @@ if prompt := st.chat_input("Ask a question about the resumes"):
         st.markdown(prompt)
 
     # RAG: retrieve the most relevant resumes for this specific question
-    results = rag.search(prompt, k=10)
+    results = rag.search(model, prompt, k=10)
 
     # Build system prompt from retrieved resumes (not a random sample)
     resume_context = "\n\n---\n\n".join(
