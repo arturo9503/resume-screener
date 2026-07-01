@@ -65,7 +65,7 @@ if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
         st.write(selected_posting["description"])
-    ranked = rag.search(model, str(selected_posting["description"]), k=50)
+    ranked = rag.search(model, str(selected_posting["description"]), k=5)
     st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
     for i, r in enumerate(ranked):
         c1, c2, c3, c4 = st.columns([1, 3, 2, 1])
