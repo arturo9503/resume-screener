@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import rag
 import db
+import analysis
 
 load_dotenv()
 
@@ -66,15 +67,41 @@ if selected_posting is not None:
     with st.expander("Job description"):
         st.write(selected_posting["description"])
     ranked = rag.search(model, str(selected_posting["description"]), k=5)
-    st.markdown(f"**Top {len(ranked)} candidates by semantic match**")
+
+    analyses = {}
+    if not demo_mode:
+        with st.spinner("Analyzing candidates with Claude..."):
+            try:
+                results = analysis.analyze(ranked, str(selected_posting["description"]), api_key)
+                analyses = {str(r["candidate_id"]): r for r in results}
+                ranked = sorted(
+                    ranked,
+                    key=lambda r: analyses.get(str(r["ID"]), {}).get("fit_score", 0),
+                    reverse=True,
+                )
+            except Exception as e:
+                st.warning(f"Claude analysis unavailable: {e}")
+
+    label = "fit score" if analyses else "semantic similarity"
+    st.markdown(f"**Top {len(ranked)} candidates by {label}**")
+
     for i, r in enumerate(ranked):
-        c1, c2, c3, c4 = st.columns([1, 3, 2, 1])
-        c1.write(i + 1)
-        c2.write(r["Category"])
-        if c3.button(f"ID {r['ID']}", key=f"resume_{i}"):
+        a = analyses.get(str(r["ID"]))
+        cols = st.columns([4, 1, 1])
+        if cols[0].button(f"#{i + 1} · {r['Category']} · ID {r['ID']}", key=f"resume_{i}"):
             show_resume(r)
-        c4.write(f"{r['score']:.3f}")
-    st.divider()
+        if a:
+            cols[1].metric("Fit", f"{a['fit_score']}/10")
+        cols[2].metric("Similarity", f"{r['score']:.3f}")
+
+        if a:
+            st.write(a["explanation"])
+            st.markdown(f"**Strengths:** {a['strengths'][0]} · {a['strengths'][1]}")
+            concern = a.get("concern")
+            if concern and str(concern).lower() != "null":
+                st.markdown(f"**Concern:** {concern}")
+
+        st.divider()
 
 DB_STATS = (
     f"Total resumes: {len(df)}\n"
