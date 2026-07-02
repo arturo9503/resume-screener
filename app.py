@@ -1,8 +1,7 @@
 import streamlit as st
-import pandas as pd
-import anthropic
 import os
 from dotenv import load_dotenv
+import anthropic
 import rag
 import db
 import analysis
@@ -62,46 +61,64 @@ def show_resume(r):
     st.html(r.get("Resume_html", str(r.get("Resume_str", ""))))
 
 
+def get_analyses(ranked, job_description):
+    if demo_mode:
+        return {}
+    with st.spinner("Analyzing candidates with Claude..."):
+        try:
+            results = analysis.analyze(ranked, job_description, api_key)
+            return {str(r["candidate_id"]): r for r in results}
+        except Exception as e:
+            st.warning(f"Claude analysis unavailable: {e}")
+            return {}
+
+
+def render_candidate(i, r, a):
+    cols = st.columns([4, 1, 1])
+    if cols[0].button(f"#{i + 1} · {r['Category']} · ID {r['ID']}", key=f"resume_{i}"):
+        show_resume(r)
+    if a:
+        cols[1].metric("Fit", f"{a['fit_score']}/10")
+    cols[2].metric("Similarity", f"{r['score']:.3f}")
+    if a:
+        st.write(a["explanation"])
+        st.markdown(f"**Strengths:** {a['strengths'][0]} · {a['strengths'][1]}")
+        concern = a.get("concern")
+        if concern and str(concern).lower() != "null":
+            st.markdown(f"**Concern:** {concern}")
+    st.divider()
+
+
+def get_chat_response(prompt, system_prompt, results):
+    if demo_mode:
+        cats = ", ".join(r["Category"] for r in results[:5])
+        return (
+            f"**Demo answer:** Your question was *\"{prompt}\"*. "
+            f"RAG retrieved {len(results)} relevant resumes including categories: {cats}. "
+            "Add an API key to get real answers from Claude."
+        )
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=1000,
+        system=system_prompt,
+        messages=st.session_state.messages,
+    )
+    return message.content[0].text
+
+
 if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
         st.write(selected_posting["description"])
     ranked = rag.search(model, str(selected_posting["description"]), k=25)
-
-    analyses = {}
-    if not demo_mode:
-        with st.spinner("Analyzing candidates with Claude..."):
-            try:
-                results = analysis.analyze(ranked, str(selected_posting["description"]), api_key)
-                analyses = {str(r["candidate_id"]): r for r in results}
-                ranked = sorted(
-                    ranked,
-                    key=lambda r: analyses.get(str(r["ID"]), {}).get("fit_score", 0),
-                    reverse=True,
-                )
-            except Exception as e:
-                st.warning(f"Claude analysis unavailable: {e}")
-
+    analyses = get_analyses(ranked, str(selected_posting["description"]))
+    if analyses:
+        ranked = sorted(ranked, key=lambda r: analyses.get(str(r["ID"]), {}).get("fit_score", 0), reverse=True)
     label = "fit score" if analyses else "semantic similarity"
     st.markdown(f"**Top {len(ranked)} candidates by {label}**")
-
     for i, r in enumerate(ranked):
-        a = analyses.get(str(r["ID"]))
-        cols = st.columns([4, 1, 1])
-        if cols[0].button(f"#{i + 1} · {r['Category']} · ID {r['ID']}", key=f"resume_{i}"):
-            show_resume(r)
-        if a:
-            cols[1].metric("Fit", f"{a['fit_score']}/10")
-        cols[2].metric("Similarity", f"{r['score']:.3f}")
-
-        if a:
-            st.write(a["explanation"])
-            st.markdown(f"**Strengths:** {a['strengths'][0]} · {a['strengths'][1]}")
-            concern = a.get("concern")
-            if concern and str(concern).lower() != "null":
-                st.markdown(f"**Concern:** {concern}")
-
-        st.divider()
+        render_candidate(i, r, analyses.get(str(r["ID"])))
 
 DB_STATS = (
     f"Total resumes: {len(df)}\n"
@@ -125,10 +142,7 @@ if prompt := st.chat_input("Ask a question about the resumes"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # RAG: retrieve the most relevant resumes for this specific question
     results = rag.search(model, prompt, k=10)
-
-    # Build system prompt from retrieved resumes (not a random sample)
     resume_context = "\n\n---\n\n".join(
         f"ID: {r['ID']}, Category: {r['Category']}\n{str(r[text_col])[:1500]}"
         for r in results
@@ -140,31 +154,12 @@ if prompt := st.chat_input("Ask a question about the resumes"):
         "Answer clearly and specifically based on the retrieved resumes above."
     )
 
-    if demo_mode:
-        cats = ", ".join(r["Category"] for r in results[:5])
-        response = (
-            f"**Demo answer:** Your question was *\"{prompt}\"*. "
-            f"RAG retrieved {len(results)} relevant resumes including categories: {cats}. "
-            "Add an API key to get real answers from Claude."
-        )
-        with st.chat_message("assistant"):
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
-    else:
-        client = anthropic.Anthropic(api_key=api_key)
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                message = client.messages.create(
-                    model="claude-haiku-4-5",
-                    max_tokens=1000,
-                    system=system_prompt,
-                    messages=st.session_state.messages,
-                )
-            response = message.content[0].text
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    with st.spinner("Thinking..."):
+        response = get_chat_response(prompt, system_prompt, results)
+    with st.chat_message("assistant"):
+        st.markdown(response)
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Show which resumes were retrieved so the user can understand RAG
     with st.expander(f"Retrieved {len(results)} relevant resumes (RAG)"):
         for r in results:
             st.markdown(f"**{r['Category']}** — ID: {r['ID']} — similarity: `{r['score']:.3f}`")
