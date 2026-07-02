@@ -9,7 +9,7 @@ The Resume Screener helps recruiters evaluate candidates against a job posting. 
 ## Behavior
 
 ### Search
-Semantic search returns a small, fixed number of top candidates — enough to be meaningful, not so many that the AI analysis becomes unwieldy. These candidates are the only ones passed downstream.
+Semantic search returns the top 25 candidates by similarity — enough to give Claude meaningful signal without degrading score consistency. These candidates are the only ones passed downstream.
 
 ### AI Analysis
 All top candidates and the job description are evaluated together in a single AI call. For each candidate the AI returns:

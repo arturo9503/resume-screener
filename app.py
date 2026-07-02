@@ -66,7 +66,7 @@ if selected_posting is not None:
     st.subheader(f"{selected_posting['title']} @ {selected_posting['company_name']}")
     with st.expander("Job description"):
         st.write(selected_posting["description"])
-    ranked = rag.search(model, str(selected_posting["description"]), k=5)
+    ranked = rag.search(model, str(selected_posting["description"]), k=25)
 
     analyses = {}
     if not demo_mode:
